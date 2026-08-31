@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Gesture-Controlled Computer Vision Web App
 
-## Getting Started
+A mobile-first browser-based computer vision project that allows users to interact with real-time camera experiences using hand gestures.
 
-First, run the development server:
+## Current Status
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Completed
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Next.js project setup
+- JavaScript (no TypeScript)
+- Tailwind CSS setup
+- Home page
+- About page
+- Filters / AR mode route
+- Front-facing camera access
+- Camera stream cleanup when leaving the mode
+- Basic Filters mode UI
+- Initial Git checkpoints
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### In Progress
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Filters / AR mode
+- Interactive gesture tutorial
+- Hand tracking
+- Rectangle selection
+- Freehand selection
+- Selection repositioning
+- Visual filters
+- Filter options menu
+- Palm swipe filter switching
 
-## Learn More
+## Planned Modes
 
-To learn more about Next.js, take a look at the following resources:
+### 1. Filters / AR
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Users can select an area of the live camera view using either:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Two-index-finger rectangle selection
+- Freehand drawing
 
-## Deploy on Vercel
+The selected area can then be transformed using five visual filters.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 2. Puzzle
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The user captures an image from the front camera, which is converted into a puzzle. The puzzle is solved using hand gestures.
+
+### 3. Invisible
+
+Person segmentation is used to create an effect that makes the person appear invisible in the camera view.
+
+## Gesture System
+
+- Point — target objects and UI options
+- Pinch — select, draw, or grab a selection
+- Two index fingers — create a rectangular selection
+- Open palm — show or hide the Filters options menu
+- Palm swipe — cycle through filters after a valid selection exists
+- Closed fist — reset the current mode
+- Exit button — leave the current mode
+
+### Selection Feedback
+
+Selections use a red border while they are being created or are not yet valid.
+
+A correctly completed selection changes to a green border.
+
+Freehand selections must form a closed shape before they can be accepted.
+
+## Technology
+
+- Next.js
+- JavaScript
+- Tailwind CSS
+- MediaPipe Tasks Vision
+- OpenCV.js
+- HTML Canvas API
+- Browser MediaDevices API
+- localStorage
+- Git / GitHub
+- Netlify
+
+## Computer Vision Models
+
+The project will use lightweight pretrained models that run directly in the visitor's browser.
+
+Models will be loaded only when the relevant mode requires them rather than downloading all models when the homepage opens.
+
+Planned models:
+
+- MediaPipe Hand Landmarker
+- MediaPipe Gesture Recognizer
+- MediaPipe Image Segmenter
+
+No backend or database is planned.
+
+## Development Approach
+
+The project is being developed one mode at a time.
+
+Each completed mode will be:
+
+1. Implemented
+2. Tested locally
+3. Deployed to Netlify
+4. Tested on mobile and desktop
+5. Stabilized before moving to the next mode

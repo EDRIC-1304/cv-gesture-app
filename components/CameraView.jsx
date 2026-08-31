@@ -4,18 +4,26 @@ import { useEffect, useRef } from "react";
 
 export default function CameraView() {
   const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
   useEffect(() => {
-    let stream;
+    let isMounted = true;
 
     async function startCamera() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
           },
           audio: false,
         });
+
+        if (!isMounted) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -28,8 +36,15 @@ export default function CameraView() {
     startCamera();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      isMounted = false;
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
   }, []);

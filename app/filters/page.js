@@ -1,3 +1,5 @@
+import CameraView from "../../components/CameraView";
+
 export default function Filters() {
   return (
     <main className="min-h-screen bg-black text-white">
@@ -16,10 +18,8 @@ export default function Filters() {
 
         {/* Camera area */}
         <section className="flex flex-1 items-center justify-center p-5">
-          <div className="flex aspect-[3/4] w-full max-w-md items-center justify-center rounded-2xl border border-white/10 bg-gray-900">
-            <p className="text-sm text-gray-400">
-              Camera will appear here
-            </p>
+          <div className="aspect-[3/4] w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-gray-900">
+            <CameraView />
           </div>
         </section>
       </div>

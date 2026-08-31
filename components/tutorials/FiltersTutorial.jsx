@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function FiltersTutorial({ onComplete }) {
+export default function FiltersTutorial({ onComplete, onExit }) {
   const [step, setStep] = useState(0);
 
   const steps = [
@@ -69,13 +69,23 @@ export default function FiltersTutorial({ onComplete }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-5 backdrop-blur-md">
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/80 px-5 backdrop-blur-md">
+
+      {/* Exit button */}
+      <button
+        onClick={onExit}
+        className="absolute right-5 top-4 z-30 rounded-full border border-white/20 bg-black/50 px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white hover:text-black sm:right-8"
+      >
+        Exit
+      </button>
+
       <div className="w-full max-w-lg">
 
         {/* Progress */}
         <div className="mb-6">
           <div className="flex items-center justify-between text-xs text-white/40">
             <span>Filters tutorial</span>
+
             <span>
               {step + 1} / {steps.length}
             </span>
@@ -94,10 +104,12 @@ export default function FiltersTutorial({ onComplete }) {
         {/* Tutorial card */}
         <div className="rounded-3xl border border-white/10 bg-[#181818] p-7 shadow-2xl sm:p-9">
 
+          {/* Gesture */}
           <div className="flex min-h-24 items-center justify-center text-6xl">
             {currentStep.gesture}
           </div>
 
+          {/* Content */}
           <div className="mt-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
               Gesture {step + 1}
@@ -115,10 +127,11 @@ export default function FiltersTutorial({ onComplete }) {
           {/* Detection status */}
           <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center">
             <p className="text-xs text-white/40">
-              Waiting for gesture detection...
+              Gesture detection will appear here.
             </p>
           </div>
 
+          {/* Temporary button */}
           <button
             onClick={handleNext}
             className="mt-6 w-full rounded-full bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-gray-200"
@@ -126,14 +139,15 @@ export default function FiltersTutorial({ onComplete }) {
             {isLastStep ? "Start Filters" : "Continue"}
           </button>
 
+          {/* Skip */}
           <button
             onClick={onComplete}
             className="mt-3 w-full py-2 text-sm text-white/35 transition hover:text-white"
           >
             ⓘ Skip tutorial
           </button>
-        </div>
 
+        </div>
       </div>
     </div>
   );

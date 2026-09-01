@@ -6,10 +6,19 @@ function distance(pointA, pointB) {
 }
 
 function isFingerExtended(landmarks, tipIndex, pipIndex) {
-  const tip = landmarks[tipIndex];
-  const pip = landmarks[pipIndex];
+  const wrist = landmarks[0];
 
-  return tip.y < pip.y;
+  const tipDistance = distance(
+    landmarks[tipIndex],
+    wrist
+  );
+
+  const pipDistance = distance(
+    landmarks[pipIndex],
+    wrist
+  );
+
+  return tipDistance > pipDistance * 1.15;
 }
 
 export function detectGesture(landmarks) {
@@ -22,17 +31,38 @@ export function detectGesture(landmarks) {
   const ringExtended = isFingerExtended(landmarks, 16, 14);
   const pinkyExtended = isFingerExtended(landmarks, 20, 18);
 
+  const palmSize = distance(
+    landmarks[0],
+    landmarks[9]
+  );
+
   const thumbIndexDistance = distance(
     landmarks[4],
     landmarks[8]
   );
 
-  // Pinch
-  if (thumbIndexDistance < 0.06) {
+  const normalizedPinchDistance =
+    thumbIndexDistance / palmSize;
+
+  // -------------------------
+  // PINCH
+  // -------------------------
+  //
+  // Thumb and index must be close,
+  // but the index finger must still
+  // have some extension.
+  //
+  if (
+    normalizedPinchDistance < 0.45 &&
+    indexExtended
+  ) {
     return "pinch";
   }
 
-  // Open palm
+  // -------------------------
+  // OPEN PALM
+  // -------------------------
+
   if (
     indexExtended &&
     middleExtended &&
@@ -42,7 +72,10 @@ export function detectGesture(landmarks) {
     return "open_palm";
   }
 
-  // Point
+  // -------------------------
+  // POINT
+  // -------------------------
+
   if (
     indexExtended &&
     !middleExtended &&
@@ -52,7 +85,10 @@ export function detectGesture(landmarks) {
     return "point";
   }
 
-  // Fist
+  // -------------------------
+  // FIST
+  // -------------------------
+
   if (
     !indexExtended &&
     !middleExtended &&

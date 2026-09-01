@@ -10,6 +10,11 @@ export function getStableGesture(gesture) {
   if (gesture !== lastGesture) {
     lastGesture = gesture;
     gestureStartTime = now;
+
+    if (gesture === "none") {
+      stableGesture = "none";
+    }
+
     return stableGesture;
   }
 

@@ -21,6 +21,15 @@ function isFingerExtended(landmarks, tipIndex, pipIndex) {
   return tipDistance > pipDistance * 1.15;
 }
 
+function isOpenPalm(landmarks) {
+  return (
+    isFingerExtended(landmarks, 8, 6) &&
+    isFingerExtended(landmarks, 12, 10) &&
+    isFingerExtended(landmarks, 16, 14) &&
+    isFingerExtended(landmarks, 20, 18)
+  );
+}
+
 export function detectGesture(landmarks) {
   if (!landmarks || landmarks.length !== 21) {
     return "none";
@@ -47,11 +56,7 @@ export function detectGesture(landmarks) {
   // -------------------------
   // PINCH
   // -------------------------
-  //
-  // Thumb and index must be close,
-  // but the index finger must still
-  // have some extension.
-  //
+
   if (
     normalizedPinchDistance < 0.45 &&
     indexExtended
@@ -99,4 +104,12 @@ export function detectGesture(landmarks) {
   }
 
   return "none";
+}
+
+export function isPalm(landmarks) {
+  if (!landmarks || landmarks.length !== 21) {
+    return false;
+  }
+
+  return isOpenPalm(landmarks);
 }

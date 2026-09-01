@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  getStableGesture,
+  resetGestureStability,
+} from "../utils/gestureStability";
+
 import { useEffect, useRef, useState } from "react";
 import {
   FilesetResolver,
@@ -123,8 +128,9 @@ export default function HandTracker() {
 
           // Detect gesture from the first detected hand
           const detectedGesture = detectGesture(results.landmarks[0]);
+          const stableGesture = getStableGesture(detectedGesture);
 
-          setGesture(detectedGesture);
+          setGesture(stableGesture);
 
           setStatus(`Hand detected: ${results.landmarks.length}`);
         } else {
@@ -150,6 +156,7 @@ export default function HandTracker() {
       if (handLandmarker) {
         handLandmarker.close();
       }
+      resetGestureStability();
     };
   }, []);
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   FilesetResolver,
   HandLandmarker,
+  DrawingUtils,
 } from "@mediapipe/tasks-vision";
 
 export default function HandTracker() {
@@ -13,18 +14,20 @@ export default function HandTracker() {
   const [status, setStatus] = useState("Loading hand tracking...");
 
   useEffect(() => {
-    let stream;
-    let animationFrameId;
-    let handLandmarker;
+    let stream = null;
+    let animationFrameId = null;
+    let handLandmarker = null;
 
     async function setup() {
       try {
-        // Load MediaPipe vision runtime
+        setStatus("Loading MediaPipe...");
+
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
         );
 
-        // Load the pretrained Hand Landmarker
+        setStatus("Loading hand model...");
+
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath:
@@ -33,9 +36,13 @@ export default function HandTracker() {
           },
           runningMode: "VIDEO",
           numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
         });
 
-        // Start front-facing camera
+        setStatus("Starting camera...");
+
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
@@ -43,52 +50,79 @@ export default function HandTracker() {
           audio: false,
         });
 
-        if (!videoRef.current) return;
+        const video = videoRef.current;
 
-        videoRef.current.srcObject = stream;
+        if (!video) {
+          throw new Error("Video element not found");
+        }
 
-        videoRef.current.onloadeddata = () => {
-          setStatus("Hand tracking active");
-          detectHands();
-        };
+        video.srcObject = stream;
+
+        await video.play();
+
+        setStatus("Hand tracking active");
+
+        detectHands();
       } catch (error) {
         console.error("Hand tracking setup failed:", error);
-        setStatus("Unable to start hand tracking");
+
+        setStatus(
+          `Error: ${error?.message || "Unable to initialize hand tracking"}`
+        );
       }
     }
 
     function detectHands() {
-      if (!videoRef.current || !canvasRef.current || !handLandmarker) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (!video || !canvas || !handLandmarker) {
         return;
       }
 
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
-
       if (video.readyState >= 2) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const canvasWidth = video.videoWidth;
+        const canvasHeight = video.videoHeight;
 
-        const result = handLandmarker.detectForVideo(
+        if (canvas.width !== canvasWidth) {
+          canvas.width = canvasWidth;
+        }
+
+        if (canvas.height !== canvasHeight) {
+          canvas.height = canvasHeight;
+        }
+
+        const context = canvas.getContext("2d");
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        const results = handLandmarker.detectForVideo(
           video,
           performance.now()
         );
 
-        context.clearRect(0, 0, canvas.width, canvas.height);
+        const drawingUtils = new DrawingUtils(context);
 
-        for (const landmarks of result.landmarks) {
-          for (const point of landmarks) {
-            context.beginPath();
-            context.arc(
-              point.x * canvas.width,
-              point.y * canvas.height,
-              5,
-              0,
-              Math.PI * 2
+        if (results.landmarks) {
+          for (const landmarks of results.landmarks) {
+            drawingUtils.drawConnectors(
+              landmarks,
+              HandLandmarker.HAND_CONNECTIONS,
+              {
+                lineWidth: 3,
+              }
             );
-            context.fill();
+
+            drawingUtils.drawLandmarks(landmarks, {
+              radius: 5,
+            });
           }
+        }
+
+        if (results.landmarks?.length > 0) {
+          setStatus(`Hand detected: ${results.landmarks.length}`);
+        } else {
+          setStatus("Show your hand to the camera");
         }
       }
 
@@ -98,7 +132,9 @@ export default function HandTracker() {
     setup();
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
 
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());

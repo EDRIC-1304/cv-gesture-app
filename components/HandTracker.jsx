@@ -7,11 +7,14 @@ import {
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
 
+import { detectGesture } from "../utils/gestureDetection";
+
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   const [status, setStatus] = useState("Loading hand tracking...");
+  const [gesture, setGesture] = useState("none");
 
   useEffect(() => {
     let stream = null;
@@ -103,7 +106,7 @@ export default function HandTracker() {
 
         const drawingUtils = new DrawingUtils(context);
 
-        if (results.landmarks) {
+        if (results.landmarks?.length > 0) {
           for (const landmarks of results.landmarks) {
             drawingUtils.drawConnectors(
               landmarks,
@@ -117,11 +120,15 @@ export default function HandTracker() {
               radius: 5,
             });
           }
-        }
 
-        if (results.landmarks?.length > 0) {
+          // Detect gesture from the first detected hand
+          const detectedGesture = detectGesture(results.landmarks[0]);
+
+          setGesture(detectedGesture);
+
           setStatus(`Hand detected: ${results.landmarks.length}`);
         } else {
+          setGesture("none");
           setStatus("Show your hand to the camera");
         }
       }
@@ -161,8 +168,28 @@ export default function HandTracker() {
         className="absolute inset-0 h-full w-full object-cover"
       />
 
+      {/* Tracking status */}
       <div className="absolute left-4 top-4 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur">
         {status}
+      </div>
+
+      {/* Gesture */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-2xl bg-black/70 px-6 py-4 text-center backdrop-blur">
+        <p className="text-xs uppercase tracking-widest text-white/40">
+          Detected gesture
+        </p>
+
+        <p className="mt-1 text-xl font-semibold text-white">
+          {gesture === "open_palm"
+            ? "OPEN PALM"
+            : gesture === "point"
+            ? "POINT"
+            : gesture === "pinch"
+            ? "PINCH"
+            : gesture === "fist"
+            ? "FIST"
+            : "NONE"}
+        </p>
       </div>
     </div>
   );

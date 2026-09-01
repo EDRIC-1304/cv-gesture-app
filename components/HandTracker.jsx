@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  getStableGesture,
-  resetGestureStability,
-} from "../utils/gestureStability";
-
 import { useEffect, useRef, useState } from "react";
 import {
   FilesetResolver,
@@ -14,11 +9,19 @@ import {
 
 import { detectGesture } from "../utils/gestureDetection";
 
+import {
+  getStableGesture,
+  resetGestureStability,
+} from "../utils/gestureStability";
+
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  const [status, setStatus] = useState("Loading hand tracking...");
+  const [status, setStatus] = useState(
+    "Loading hand tracking..."
+  );
+
   const [gesture, setGesture] = useState("none");
 
   useEffect(() => {
@@ -30,38 +33,50 @@ export default function HandTracker() {
       try {
         setStatus("Loading MediaPipe...");
 
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
-        );
+        const vision =
+          await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+          );
 
         setStatus("Loading hand model...");
 
-        handLandmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
+        handLandmarker =
+          await HandLandmarker.createFromOptions(
+            vision,
+            {
+              baseOptions: {
+                modelAssetPath:
+                  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+
+                delegate: "GPU",
+              },
+
+              runningMode: "VIDEO",
+
+              numHands: 2,
+
+              minHandDetectionConfidence: 0.5,
+              minHandPresenceConfidence: 0.5,
+              minTrackingConfidence: 0.5,
+            }
+          );
 
         setStatus("Starting camera...");
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-          },
-          audio: false,
-        });
+        stream =
+          await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+            },
+            audio: false,
+          });
 
         const video = videoRef.current;
 
         if (!video) {
-          throw new Error("Video element not found");
+          throw new Error(
+            "Video element not found"
+          );
         }
 
         video.srcObject = stream;
@@ -72,10 +87,16 @@ export default function HandTracker() {
 
         detectHands();
       } catch (error) {
-        console.error("Hand tracking setup failed:", error);
+        console.error(
+          "Hand tracking setup failed:",
+          error
+        );
 
         setStatus(
-          `Error: ${error?.message || "Unable to initialize hand tracking"}`
+          `Error: ${
+            error?.message ||
+            "Unable to initialize hand tracking"
+          }`
         );
       }
     }
@@ -84,7 +105,11 @@ export default function HandTracker() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      if (!video || !canvas || !handLandmarker) {
+      if (
+        !video ||
+        !canvas ||
+        !handLandmarker
+      ) {
         return;
       }
 
@@ -100,18 +125,32 @@ export default function HandTracker() {
           canvas.height = canvasHeight;
         }
 
-        const context = canvas.getContext("2d");
+        const context =
+          canvas.getContext("2d");
 
-        context.clearRect(0, 0, canvas.width, canvas.height);
-
-        const results = handLandmarker.detectForVideo(
-          video,
-          performance.now()
+        context.clearRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
         );
 
-        const drawingUtils = new DrawingUtils(context);
+        const results =
+          handLandmarker.detectForVideo(
+            video,
+            performance.now()
+          );
 
-        if (results.landmarks?.length > 0) {
+        const drawingUtils =
+          new DrawingUtils(context);
+
+        if (
+          results.landmarks?.length > 0
+        ) {
+          /*
+           * Draw the 21 landmarks
+           * and hand connections.
+           */
           for (const landmarks of results.landmarks) {
             drawingUtils.drawConnectors(
               landmarks,
@@ -121,47 +160,93 @@ export default function HandTracker() {
               }
             );
 
-            drawingUtils.drawLandmarks(landmarks, {
-              radius: 5,
-            });
+            drawingUtils.drawLandmarks(
+              landmarks,
+              {
+                radius: 5,
+              }
+            );
           }
 
-          // Detect gesture from the first detected hand
-          const detectedGesture = detectGesture(results.landmarks[0]);
-          const stableGesture = getStableGesture(detectedGesture);
+          /*
+           * For now we use the first
+           * detected hand for gestures.
+           */
+          const landmarks =
+            results.landmarks[0];
+
+          /*
+           * Detect the raw gesture.
+           */
+          const detectedGesture =
+            detectGesture(landmarks);
+
+          /*
+           * Stabilize the gesture.
+           */
+          const stableGesture =
+            getStableGesture(
+              detectedGesture
+            );
 
           setGesture(stableGesture);
 
-          setStatus(`Hand detected: ${results.landmarks.length}`);
+          setStatus(
+            `Hand detected: ${results.landmarks.length}`
+          );
         } else {
           setGesture("none");
-          setStatus("Show your hand to the camera");
+
+          setStatus(
+            "Show your hand to the camera"
+          );
         }
       }
 
-      animationFrameId = requestAnimationFrame(detectHands);
+      animationFrameId =
+        requestAnimationFrame(
+          detectHands
+        );
     }
 
     setup();
 
+    /*
+     * Cleanup when the component
+     * is removed/exited.
+     */
     return () => {
       if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+        cancelAnimationFrame(
+          animationFrameId
+        );
       }
 
+      /*
+       * Stop every camera track.
+       */
       if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+        stream
+          .getTracks()
+          .forEach((track) => {
+            track.stop();
+          });
       }
 
+      /*
+       * Close MediaPipe.
+       */
       if (handLandmarker) {
         handLandmarker.close();
       }
+
       resetGestureStability();
     };
   }, []);
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black">
+      {/* Camera */}
       <video
         ref={videoRef}
         autoPlay
@@ -170,12 +255,13 @@ export default function HandTracker() {
         className="absolute inset-0 h-full w-full object-cover"
       />
 
+      {/* Hand landmarks */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Tracking status */}
+      {/* Status */}
       <div className="absolute left-4 top-4 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur">
         {status}
       </div>
@@ -183,7 +269,7 @@ export default function HandTracker() {
       {/* Gesture */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-2xl bg-black/70 px-6 py-4 text-center backdrop-blur">
         <p className="text-xs uppercase tracking-widest text-white/40">
-          Detected gesture
+          Detected Gesture
         </p>
 
         <p className="mt-1 text-xl font-semibold text-white">

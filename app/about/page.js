@@ -30,10 +30,10 @@ export default function About() {
             Gesture-controlled computer vision.
           </h1>
 
-          <p className="mt-7 max-w-2xl text-base leading-7 text-black/55 sm:text-lg">
+          {/* <p className="mt-7 max-w-2xl text-base leading-7 text-black/55 sm:text-lg">
             This project is a browser-based computer vision experience that
             lets you interact with the camera using hand gestures.
-          </p>
+          </p> */}
         </section>
 
         {/* Modes */}
@@ -177,12 +177,12 @@ export default function About() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-black/10 bg-black/[0.03] p-6">
+          {/* <div className="mt-6 rounded-2xl border border-black/10 bg-black/[0.03] p-6">
             <p className="text-sm leading-6 text-black/55">
               Selections start with a red border and turn green once they are
               correctly completed.
             </p>
-          </div>
+          </div> */}
         </section>
 
         {/* Footer */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   FilesetResolver,
   HandLandmarker,
@@ -8,38 +8,32 @@ import {
 } from "@mediapipe/tasks-vision";
 
 import { detectGesture } from "../utils/gestureDetection";
-import {
-  getStableGesture,
-  resetGestureStability,
-} from "../utils/gestureStability";
+import { getStableGesture } from "../utils/gestureStability";
 
-import { getRectangleFromHands } from "../utils/areaSelection";
+import {
+  updateRectangleSelection,
+  resetRectangleSelection,
+} from "../utils/rectangleSelection";
 
 export default function HandTracker() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  const [status, setStatus] = useState(
-    "Loading hand tracking..."
-  );
-
-  const [gesture, setGesture] = useState("none");
-
   useEffect(() => {
-    let stream = null;
-    let animationFrameId = null;
     let handLandmarker = null;
+    let animationFrameId = null;
+    let stream = null;
+    let stopped = false;
 
-    async function setup() {
+    const setup = async () => {
       try {
-        setStatus("Loading MediaPipe...");
+        console.log("Starting hand tracker...");
 
-        const vision =
-          await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
-          );
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+        );
 
-        setStatus("Loading hand model...");
+        console.log("MediaPipe WASM loaded");
 
         handLandmarker =
           await HandLandmarker.createFromOptions(
@@ -60,7 +54,9 @@ export default function HandTracker() {
             }
           );
 
-        setStatus("Starting camera...");
+        console.log("Hand model loaded");
+
+        if (stopped) return;
 
         stream =
           await navigator.mediaDevices.getUserMedia({
@@ -70,191 +66,234 @@ export default function HandTracker() {
             audio: false,
           });
 
+        console.log("Camera started");
+
         const video = videoRef.current;
 
         if (!video) {
-          throw new Error(
-            "Video element not found"
-          );
+          console.error("Video element not found");
+          return;
         }
 
         video.srcObject = stream;
 
-        await video.play();
+        video.onloadedmetadata = async () => {
+          if (stopped) return;
 
-        setStatus("Hand tracking active");
+          console.log(
+            "Video dimensions:",
+            video.videoWidth,
+            video.videoHeight
+          );
 
-        detectHands();
+          try {
+            await video.play();
+
+            console.log("Video playing");
+
+            startDetection();
+          } catch (error) {
+            console.error(
+              "Video play failed:",
+              error
+            );
+          }
+        };
       } catch (error) {
         console.error(
           "Hand tracking setup failed:",
           error
         );
-
-        setStatus(
-          `Error: ${
-            error?.message ||
-            "Unable to initialize hand tracking"
-          }`
-        );
       }
-    }
+    };
 
-    function detectHands() {
+    const startDetection = () => {
+      if (stopped) return;
+
+      const video = videoRef.current;
+
+      if (!video) return;
+
+      if (
+        video.readyState >= 2 &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        detectHands();
+      } else {
+        requestAnimationFrame(startDetection);
+      }
+    };
+
+    const detectHands = () => {
+      if (stopped) return;
+
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      if (
-        !video ||
-        !canvas ||
-        !handLandmarker
-      ) {
+      if (!video || !canvas || !handLandmarker) {
+        animationFrameId =
+          requestAnimationFrame(detectHands);
+
         return;
       }
 
-      if (video.readyState >= 2) {
-        const canvasWidth = video.videoWidth;
-        const canvasHeight = video.videoHeight;
+      if (
+        video.readyState < 2 ||
+        video.videoWidth === 0 ||
+        video.videoHeight === 0
+      ) {
+        animationFrameId =
+          requestAnimationFrame(detectHands);
 
-        if (canvas.width !== canvasWidth) {
-          canvas.width = canvasWidth;
-        }
+        return;
+      }
 
-        if (canvas.height !== canvasHeight) {
-          canvas.height = canvasHeight;
-        }
+      if (
+        canvas.width !== video.videoWidth ||
+        canvas.height !== video.videoHeight
+      ) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
 
-        const context =
-          canvas.getContext("2d");
+      const context = canvas.getContext("2d");
 
-        context.clearRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
+      if (!context) {
+        animationFrameId =
+          requestAnimationFrame(detectHands);
+
+        return;
+      }
+
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      const results =
+        handLandmarker.detectForVideo(
+          video,
+          performance.now()
         );
 
-        const results =
-          handLandmarker.detectForVideo(
-            video,
-            performance.now()
-          );
+      const drawingUtils =
+        new DrawingUtils(context);
 
-        const drawingUtils =
-          new DrawingUtils(context);
+      // --------------------------------
+      // DRAW HAND LANDMARKS
+      // --------------------------------
 
-        if (
-          results.landmarks?.length > 0
-        ) {
-          /*
-           * Draw hand landmarks.
-           */
-          for (const landmarks of results.landmarks) {
-            drawingUtils.drawConnectors(
-              landmarks,
-              HandLandmarker.HAND_CONNECTIONS,
-              {
-                lineWidth: 3,
-              }
-            );
-
-            drawingUtils.drawLandmarks(
-              landmarks,
-              {
-                radius: 5,
-              }
-            );
-          }
-
-          /*
-           * Gesture detection continues
-           * to use the first detected hand.
-           */
-          const landmarks =
-            results.landmarks[0];
-
-          const detectedGesture =
-            detectGesture(landmarks);
-
-          const stableGesture =
-            getStableGesture(
-              detectedGesture
-            );
-
-          setGesture(stableGesture);
-
-          /*
-           * RECTANGLE PREVIEW
-           *
-           * Only attempt this when two
-           * hands are visible.
-           */
-          if (
-            results.landmarks.length >= 2
-          ) {
-            const rectangle =
-              getRectangleFromHands(
-                results.landmarks
-              );
-
-            if (rectangle) {
-              const x =
-                rectangle.x *
-                canvas.width;
-
-              const y =
-                rectangle.y *
-                canvas.height;
-
-              const width =
-                rectangle.width *
-                canvas.width;
-
-              const height =
-                rectangle.height *
-                canvas.height;
-
-              /*
-               * Red = currently being created
-               * Green = large enough to be valid
-               */
-              context.strokeStyle =
-                rectangle.valid
-                  ? "lime"
-                  : "red";
-
-              context.lineWidth = 4;
-
-              context.strokeRect(
-                x,
-                y,
-                width,
-                height
-              );
+      if (results.landmarks) {
+        for (const landmarks of results.landmarks) {
+          drawingUtils.drawConnectors(
+            landmarks,
+            HandLandmarker.HAND_CONNECTIONS,
+            {
+              color: "#00FF00",
+              lineWidth: 2,
             }
-          }
-
-          setStatus(
-            `Hands detected: ${results.landmarks.length}`
           );
-        } else {
-          setGesture("none");
 
-          setStatus(
-            "Show your hand to the camera"
+          drawingUtils.drawLandmarks(
+            landmarks,
+            {
+              color: "#FF0000",
+              lineWidth: 1,
+              radius: 3,
+            }
           );
         }
       }
 
-      animationFrameId =
-        requestAnimationFrame(
-          detectHands
+      // --------------------------------
+      // GESTURE DETECTION
+      // --------------------------------
+
+      let stableGesture = "none";
+
+      if (
+        results.landmarks &&
+        results.landmarks.length > 0
+      ) {
+        const gesture = detectGesture(
+          results.landmarks[0]
         );
-    }
+
+        stableGesture =
+          getStableGesture(gesture);
+
+        context.font = "20px Arial";
+        context.fillStyle = "white";
+
+        context.fillText(
+          `Gesture: ${stableGesture}`,
+          20,
+          30
+        );
+      }
+
+      // --------------------------------
+      // FIST = CANCEL
+      // --------------------------------
+
+      if (stableGesture === "fist") {
+        resetRectangleSelection();
+      }
+
+      // --------------------------------
+      // RECTANGLE SELECTION
+      // --------------------------------
+
+      const selection =
+        updateRectangleSelection(
+          results.landmarks
+        );
+
+      if (selection?.rectangle) {
+        const rectangle =
+          selection.rectangle;
+
+        const x =
+          rectangle.x * canvas.width;
+
+        const y =
+          rectangle.y * canvas.height;
+
+        const width =
+          rectangle.width * canvas.width;
+
+        const height =
+          rectangle.height * canvas.height;
+
+        // Green once selected
+        // Red while creating
+        context.strokeStyle =
+          selection.state === "selected"
+            ? "lime"
+            : "red";
+
+        context.lineWidth = 4;
+
+        context.strokeRect(
+          x,
+          y,
+          width,
+          height
+        );
+      }
+
+      animationFrameId =
+        requestAnimationFrame(detectHands);
+    };
 
     setup();
 
     return () => {
+      stopped = true;
+
       if (animationFrameId) {
         cancelAnimationFrame(
           animationFrameId
@@ -264,55 +303,33 @@ export default function HandTracker() {
       if (stream) {
         stream
           .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
+          .forEach((track) =>
+            track.stop()
+          );
       }
 
       if (handLandmarker) {
         handLandmarker.close();
       }
 
-      resetGestureStability();
+      resetRectangleSelection();
     };
   }, []);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black">
+    <div className="relative w-full h-full min-h-[500px] bg-black overflow-hidden">
       <video
         ref={videoRef}
-        autoPlay
+        className="absolute inset-0 w-full h-full object-cover"
         playsInline
         muted
-        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
       />
 
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
       />
-
-      <div className="absolute left-4 top-4 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur">
-        {status}
-      </div>
-
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-2xl bg-black/70 px-6 py-4 text-center backdrop-blur">
-        <p className="text-xs uppercase tracking-widest text-white/40">
-          Detected Gesture
-        </p>
-
-        <p className="mt-1 text-xl font-semibold text-white">
-          {gesture === "open_palm"
-            ? "OPEN PALM"
-            : gesture === "point"
-            ? "POINT"
-            : gesture === "pinch"
-            ? "PINCH"
-            : gesture === "fist"
-            ? "FIST"
-            : "NONE"}
-        </p>
-      </div>
     </div>
   );
 }

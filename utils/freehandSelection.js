@@ -1,6 +1,9 @@
 let state = "idle";
 let points = [];
 
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
+
 const MIN_POINTS = 10;
 const CLOSE_DISTANCE = 0.05;
 const MIN_AREA = 0.01;
@@ -48,32 +51,61 @@ function calculatePolygonArea(points) {
   return Math.abs(area) / 2;
 }
 
+function isPointInsideRectangle(point, rectangle) {
+  if (!point || !rectangle) return false;
+
+  return (
+    point.x >= rectangle.x &&
+    point.x <= rectangle.x + rectangle.width &&
+    point.y >= rectangle.y &&
+    point.y <= rectangle.y + rectangle.height
+  );
+}
+
+function moveShape(deltaX, deltaY) {
+  points = points.map((point) => ({
+    x: Math.max(0, Math.min(1, point.x + deltaX)),
+    y: Math.max(0, Math.min(1, point.y + deltaY)),
+  }));
+}
+
 export function updateFreehandSelection(
   landmarks,
   gesture = "none"
 ) {
-  // No hand
+  // -----------------------------
+  // No hand detected
+  // -----------------------------
+
   if (!landmarks || landmarks.length === 0) {
+    isDragging = false;
+
     return {
       points,
       state,
       rectangle: calculateBoundingBox(points),
+      isDragging,
     };
   }
 
   const hand = landmarks[0];
 
   const indexTip = hand[8];
+  const thumbTip = hand[4];
 
   if (!indexTip) {
     return {
       points,
       state,
       rectangle: calculateBoundingBox(points),
+      isDragging,
     };
   }
 
-  // Fist cancels drawing
+  // -----------------------------
+  // FIST = RESET
+  // -----------------------------
+
   if (gesture === "fist") {
     resetFreehandSelection();
 
@@ -81,17 +113,15 @@ export function updateFreehandSelection(
       points: [],
       state: "idle",
       rectangle: null,
+      isDragging: false,
     };
   }
 
-  // --------------------------------
-  // START DRAWING
-  // --------------------------------
+  // -----------------------------
+  // IDLE → start drawing
+  // -----------------------------
 
-  if (
-    state === "idle" &&
-    gesture === "point"
-  ) {
+  if (state === "idle" && gesture === "point") {
     state = "drawing";
 
     points = [
@@ -105,21 +135,17 @@ export function updateFreehandSelection(
       points,
       state,
       rectangle: calculateBoundingBox(points),
+      isDragging,
     };
   }
 
-  // --------------------------------
-  // CONTINUE DRAWING
-  // --------------------------------
+  // -----------------------------
+  // DRAWING
+  // -----------------------------
 
-  if (
-    state === "drawing" &&
-    gesture === "point"
-  ) {
-    const lastPoint =
-      points[points.length - 1];
+  if (state === "drawing" && gesture === "point") {
+    const lastPoint = points[points.length - 1];
 
-    // Only add point if finger actually moved
     if (
       !lastPoint ||
       distance(indexTip, lastPoint) > 0.008
@@ -130,19 +156,16 @@ export function updateFreehandSelection(
       });
     }
 
-    // Check whether the user has returned
-    // close to the starting point
+    // Check whether shape is closed
     if (points.length >= MIN_POINTS) {
       const startPoint = points[0];
 
-      const closeDistance =
-        distance(
-          indexTip,
-          startPoint
-        );
+      const closeDistance = distance(
+        indexTip,
+        startPoint
+      );
 
-      const area =
-        calculatePolygonArea(points);
+      const area = calculatePolygonArea(points);
 
       if (
         closeDistance <= CLOSE_DISTANCE &&
@@ -156,18 +179,75 @@ export function updateFreehandSelection(
       points,
       state,
       rectangle: calculateBoundingBox(points),
+      isDragging,
     };
   }
 
-  // --------------------------------
-  // SELECTED
-  // --------------------------------
+  // -----------------------------
+  // SELECTED → PINCH TO MOVE
+  // -----------------------------
 
   if (state === "selected") {
+    const rectangle = calculateBoundingBox(points);
+
+    if (
+      gesture === "pinch" &&
+      indexTip &&
+      thumbTip
+    ) {
+      // Midpoint between thumb + index
+      const pinchPoint = {
+        x: (thumbTip.x + indexTip.x) / 2,
+        y: (thumbTip.y + indexTip.y) / 2,
+      };
+
+      // Start dragging only when pinch
+      // begins inside the shape
+      if (!isDragging) {
+        if (
+          isPointInsideRectangle(
+            pinchPoint,
+            rectangle
+          )
+        ) {
+          isDragging = true;
+
+          dragOffset = {
+            x: pinchPoint.x - rectangle.x,
+            y: pinchPoint.y - rectangle.y,
+          };
+        }
+      }
+
+      // Move shape
+      if (isDragging) {
+        const currentRectangle =
+          calculateBoundingBox(points);
+
+        const newX =
+          pinchPoint.x - dragOffset.x;
+
+        const newY =
+          pinchPoint.y - dragOffset.y;
+
+        const deltaX =
+          newX - currentRectangle.x;
+
+        const deltaY =
+          newY - currentRectangle.y;
+
+        moveShape(deltaX, deltaY);
+      }
+    } else {
+      // Pinch released
+      isDragging = false;
+    }
+
     return {
       points,
       state,
       rectangle: calculateBoundingBox(points),
+      isDragging,
     };
   }
 
@@ -175,10 +255,18 @@ export function updateFreehandSelection(
     points,
     state,
     rectangle: calculateBoundingBox(points),
+    isDragging,
   };
 }
 
 export function resetFreehandSelection() {
   state = "idle";
   points = [];
+
+  isDragging = false;
+
+  dragOffset = {
+    x: 0,
+    y: 0,
+  };
 }

@@ -13,18 +13,34 @@ const MIN_WIDTH = 0.08;
 const MIN_HEIGHT = 0.08;
 const HOLD_TIME = 700;
 
+// ============================================================
+// DISTANCE
+// ============================================================
+
 function distance(point1, point2) {
   const dx = point1.x - point2.x;
   const dy = point1.y - point2.y;
 
-  return Math.sqrt(dx * dx + dy * dy);
+  return Math.sqrt(
+    dx * dx + dy * dy
+  );
 }
 
+// ============================================================
+// PINCH POINT
+// ============================================================
+
 function getPinchPoint(landmarks) {
+  if (!landmarks) {
+    return null;
+  }
+
   const thumb = landmarks[4];
   const index = landmarks[8];
 
-  if (!thumb || !index) return null;
+  if (!thumb || !index) {
+    return null;
+  }
 
   return {
     x: (thumb.x + index.x) / 2,
@@ -32,8 +48,17 @@ function getPinchPoint(landmarks) {
   };
 }
 
-function isPointInsideRectangle(point, rect) {
-  if (!point || !rect) return false;
+// ============================================================
+// POINT INSIDE RECTANGLE
+// ============================================================
+
+function isPointInsideRectangle(
+  point,
+  rect
+) {
+  if (!point || !rect) {
+    return false;
+  }
 
   return (
     point.x >= rect.x &&
@@ -43,64 +68,122 @@ function isPointInsideRectangle(point, rect) {
   );
 }
 
+// ============================================================
+// MAIN UPDATE
+// ============================================================
+
 export function updateRectangleSelection(
   landmarks,
   gesture = "none"
 ) {
-  // --------------------------------
-  // NO HANDS
-  // --------------------------------
+  const hands =
+    landmarks || [];
 
-  if (!landmarks || landmarks.length === 0) {
+  // ==========================================================
+  // NO HANDS
+  // ==========================================================
+  //
+  // IMPORTANT:
+  // NEVER reset the rectangle here.
+  //
+  // If a rectangle has already been selected, it remains
+  // selected even when MediaPipe sees zero hands.
+  // ==========================================================
+
+  if (hands.length === 0) {
+    if (
+      state === "selected" &&
+      rectangle
+    ) {
+      isDragging = false;
+
+      return {
+        rectangle,
+        state: "selected",
+        isDragging: false,
+        pinchInside: false,
+      };
+    }
+
     return {
       rectangle,
       state,
-      isDragging,
+      isDragging: false,
       pinchInside: false,
     };
   }
 
-  // --------------------------------
+  // ==========================================================
   // RECTANGLE CREATION
-  // --------------------------------
+  // ==========================================================
 
-  if (landmarks.length >= 2) {
-    const finger1 = landmarks[0][8];
-    const finger2 = landmarks[1][8];
+  if (hands.length >= 2) {
+    const finger1 =
+      hands[0]?.[8];
+
+    const finger2 =
+      hands[1]?.[8];
 
     if (finger1 && finger2) {
-      const fingerDistance = distance(
-        finger1,
-        finger2
-      );
+      const fingerDistance =
+        distance(
+          finger1,
+          finger2
+        );
 
       const currentRectangle = {
-        x: Math.min(finger1.x, finger2.x),
-        y: Math.min(finger1.y, finger2.y),
-        width: Math.abs(finger1.x - finger2.x),
-        height: Math.abs(finger1.y - finger2.y),
+        x: Math.min(
+          finger1.x,
+          finger2.x
+        ),
+
+        y: Math.min(
+          finger1.y,
+          finger2.y
+        ),
+
+        width: Math.abs(
+          finger1.x - finger2.x
+        ),
+
+        height: Math.abs(
+          finger1.y - finger2.y
+        ),
       };
 
-      // Start creating
+      // --------------------------------------------------------
+      // START CREATION
+      // --------------------------------------------------------
+
       if (
         state === "idle" &&
-        fingerDistance < START_DISTANCE
+        fingerDistance <
+          START_DISTANCE
       ) {
         state = "creating";
 
-        lastRectangle = currentRectangle;
-        lastChangeTime = performance.now();
+        lastRectangle =
+          currentRectangle;
+
+        lastChangeTime =
+          performance.now();
 
         return {
-          rectangle: currentRectangle,
+          rectangle:
+            currentRectangle,
           state,
-          isDragging,
+          isDragging: false,
           pinchInside: false,
         };
       }
 
-      // Grow rectangle
-      if (state === "creating") {
+      // --------------------------------------------------------
+      // GROW RECTANGLE
+      // --------------------------------------------------------
+
+      if (
+        state === "creating"
+      ) {
         const changed =
           !lastRectangle ||
           Math.abs(
@@ -121,46 +204,62 @@ export function updateRectangleSelection(
           ) > 0.01;
 
         if (changed) {
-          lastChangeTime = performance.now();
-          lastRectangle = currentRectangle;
+          lastChangeTime =
+            performance.now();
+
+          lastRectangle =
+            currentRectangle;
         }
 
-        // Finish selection
+        // ------------------------------------------------------
+        // FINISH SELECTION
+        // ------------------------------------------------------
+
         if (
-          currentRectangle.width >= MIN_WIDTH &&
-          currentRectangle.height >= MIN_HEIGHT &&
+          currentRectangle.width >=
+            MIN_WIDTH &&
+          currentRectangle.height >=
+            MIN_HEIGHT &&
           performance.now() -
-            lastChangeTime >= HOLD_TIME
+            lastChangeTime >=
+            HOLD_TIME
         ) {
           rectangle = {
             ...currentRectangle,
           };
 
           state = "selected";
+
+          isDragging = false;
         }
 
         return {
           rectangle:
-            rectangle || currentRectangle,
+            rectangle ||
+            currentRectangle,
+
           state,
+
           isDragging,
+
           pinchInside: false,
         };
       }
     }
   }
 
-  // --------------------------------
-  // MOVE SELECTED RECTANGLE
-  // --------------------------------
+  // ==========================================================
+  // SELECTED → PINCH TO MOVE
+  // ==========================================================
 
   if (
     state === "selected" &&
-    rectangle &&
-    landmarks.length > 0
+    rectangle
   ) {
     const pinchPoint =
-      getPinchPoint(landmarks[0]);
+      getPinchPoint(
+        hands[0]
+      );
 
     const pinchInside =
       isPointInsideRectangle(
@@ -168,7 +267,10 @@ export function updateRectangleSelection(
         rectangle
       );
 
-    // Start dragging
+    // --------------------------------------------------------
+    // START DRAG
+    // --------------------------------------------------------
+
     if (
       gesture === "pinch" &&
       !isDragging &&
@@ -177,43 +279,55 @@ export function updateRectangleSelection(
       isDragging = true;
 
       dragOffsetX =
-        pinchPoint.x - rectangle.x;
+        pinchPoint.x -
+        rectangle.x;
 
       dragOffsetY =
-        pinchPoint.y - rectangle.y;
+        pinchPoint.y -
+        rectangle.y;
     }
 
-    // Continue dragging
+    // --------------------------------------------------------
+    // CONTINUE DRAG
+    // --------------------------------------------------------
+
     if (
       gesture === "pinch" &&
       isDragging &&
       pinchPoint
     ) {
       rectangle.x =
-        pinchPoint.x - dragOffsetX;
+        pinchPoint.x -
+        dragOffsetX;
 
       rectangle.y =
-        pinchPoint.y - dragOffsetY;
+        pinchPoint.y -
+        dragOffsetY;
 
       // Keep inside camera
-      rectangle.x = Math.max(
-        0,
-        Math.min(
-          rectangle.x,
-          1 - rectangle.width
-        )
-      );
+      rectangle.x =
+        Math.max(
+          0,
+          Math.min(
+            rectangle.x,
+            1 - rectangle.width
+          )
+        );
 
-      rectangle.y = Math.max(
-        0,
-        Math.min(
-          rectangle.y,
-          1 - rectangle.height
-        )
-      );
+      rectangle.y =
+        Math.max(
+          0,
+          Math.min(
+            rectangle.y,
+            1 - rectangle.height
+          )
+        );
     }
 
-    // Release pinch
+    // --------------------------------------------------------
+    // RELEASE PINCH
+    // --------------------------------------------------------
+
     if (
       gesture !== "pinch" &&
       isDragging
@@ -226,11 +340,15 @@ export function updateRectangleSelection(
 
     return {
       rectangle,
-      state,
+      state: "selected",
       isDragging,
       pinchInside,
     };
   }
+
+  // ==========================================================
+  // DEFAULT
+  // ==========================================================
 
   return {
     rectangle,
@@ -240,14 +358,21 @@ export function updateRectangleSelection(
   };
 }
 
+// ============================================================
+// RESET
+// ============================================================
+
 export function resetRectangleSelection() {
   state = "idle";
+
   rectangle = null;
 
   lastRectangle = null;
+
   lastChangeTime = 0;
 
   isDragging = false;
+
   dragOffsetX = 0;
   dragOffsetY = 0;
 }

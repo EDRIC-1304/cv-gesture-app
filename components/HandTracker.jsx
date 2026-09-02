@@ -29,9 +29,10 @@ export default function HandTracker() {
       try {
         console.log("Starting hand tracker...");
 
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
-        );
+        const vision =
+          await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+          );
 
         console.log("MediaPipe WASM loaded");
 
@@ -70,10 +71,7 @@ export default function HandTracker() {
 
         const video = videoRef.current;
 
-        if (!video) {
-          console.error("Video element not found");
-          return;
-        }
+        if (!video) return;
 
         video.srcObject = stream;
 
@@ -157,14 +155,10 @@ export default function HandTracker() {
         canvas.height = video.videoHeight;
       }
 
-      const context = canvas.getContext("2d");
+      const context =
+        canvas.getContext("2d");
 
-      if (!context) {
-        animationFrameId =
-          requestAnimationFrame(detectHands);
-
-        return;
-      }
+      if (!context) return;
 
       context.clearRect(
         0,
@@ -212,44 +206,50 @@ export default function HandTracker() {
       // GESTURE DETECTION
       // --------------------------------
 
-      let stableGesture = "none";
+      let gesture = "none";
 
       if (
         results.landmarks &&
         results.landmarks.length > 0
       ) {
-        const gesture = detectGesture(
+        gesture = detectGesture(
           results.landmarks[0]
         );
-
-        stableGesture =
-          getStableGesture(gesture);
-
-        context.font = "20px Arial";
-        context.fillStyle = "white";
-
-        context.fillText(
-          `Gesture: ${stableGesture}`,
-          20,
-          30
-        );
       }
+
+      /*
+        IMPORTANT:
+
+        Always pass the current gesture into
+        stability, including "none".
+
+        This prevents an old "fist" or "pinch"
+        from remaining active after the hand
+        disappears.
+      */
+      const stableGesture =
+        getStableGesture(gesture);
 
       // --------------------------------
       // FIST = CANCEL
       // --------------------------------
 
-      if (stableGesture === "fist") {
+      if (
+        stableGesture === "fist" &&
+        results.landmarks &&
+        results.landmarks.length > 0
+      ) {
         resetRectangleSelection();
       }
 
       // --------------------------------
-      // RECTANGLE SELECTION
+      // RECTANGLE
       // --------------------------------
 
       const selection =
         updateRectangleSelection(
-          results.landmarks
+          results.landmarks,
+          stableGesture
         );
 
       if (selection?.rectangle) {
@@ -268,14 +268,13 @@ export default function HandTracker() {
         const height =
           rectangle.height * canvas.height;
 
-        // Green once selected
-        // Red while creating
         context.strokeStyle =
           selection.state === "selected"
             ? "lime"
             : "red";
 
-        context.lineWidth = 4;
+        context.lineWidth =
+          selection.isDragging ? 6 : 4;
 
         context.strokeRect(
           x,
@@ -285,8 +284,67 @@ export default function HandTracker() {
         );
       }
 
+      // --------------------------------
+      // DEBUGGER
+      // --------------------------------
+
+      context.fillStyle =
+        "rgba(0, 0, 0, 0.7)";
+
+      context.fillRect(
+        10,
+        45,
+        300,
+        145
+      );
+
+      context.font = "16px Arial";
+      context.fillStyle = "white";
+
+      context.fillText(
+        `Gesture: ${gesture}`,
+        20,
+        70
+      );
+
+      context.fillText(
+        `Stable: ${stableGesture}`,
+        20,
+        94
+      );
+
+      context.fillText(
+        `Pinch inside box: ${
+          selection?.pinchInside
+            ? "YES"
+            : "NO"
+        }`,
+        20,
+        118
+      );
+
+      context.fillText(
+        `Box grabbed: ${
+          selection?.isDragging
+            ? "YES"
+            : "NO"
+        }`,
+        20,
+        142
+      );
+
+      context.fillText(
+        `State: ${
+          selection?.state || "idle"
+        }`,
+        20,
+        166
+      );
+
       animationFrameId =
-        requestAnimationFrame(detectHands);
+        requestAnimationFrame(
+          detectHands
+        );
     };
 
     setup();

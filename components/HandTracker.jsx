@@ -8,11 +8,12 @@ import {
 } from "@mediapipe/tasks-vision";
 
 import { detectGesture } from "../utils/gestureDetection";
-
 import {
   getStableGesture,
   resetGestureStability,
 } from "../utils/gestureStability";
+
+import { getRectangleFromHands } from "../utils/areaSelection";
 
 export default function HandTracker() {
   const videoRef = useRef(null);
@@ -47,12 +48,10 @@ export default function HandTracker() {
               baseOptions: {
                 modelAssetPath:
                   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-
                 delegate: "GPU",
               },
 
               runningMode: "VIDEO",
-
               numHands: 2,
 
               minHandDetectionConfidence: 0.5,
@@ -148,8 +147,7 @@ export default function HandTracker() {
           results.landmarks?.length > 0
         ) {
           /*
-           * Draw the 21 landmarks
-           * and hand connections.
+           * Draw hand landmarks.
            */
           for (const landmarks of results.landmarks) {
             drawingUtils.drawConnectors(
@@ -169,21 +167,15 @@ export default function HandTracker() {
           }
 
           /*
-           * For now we use the first
-           * detected hand for gestures.
+           * Gesture detection continues
+           * to use the first detected hand.
            */
           const landmarks =
             results.landmarks[0];
 
-          /*
-           * Detect the raw gesture.
-           */
           const detectedGesture =
             detectGesture(landmarks);
 
-          /*
-           * Stabilize the gesture.
-           */
           const stableGesture =
             getStableGesture(
               detectedGesture
@@ -191,8 +183,59 @@ export default function HandTracker() {
 
           setGesture(stableGesture);
 
+          /*
+           * RECTANGLE PREVIEW
+           *
+           * Only attempt this when two
+           * hands are visible.
+           */
+          if (
+            results.landmarks.length >= 2
+          ) {
+            const rectangle =
+              getRectangleFromHands(
+                results.landmarks
+              );
+
+            if (rectangle) {
+              const x =
+                rectangle.x *
+                canvas.width;
+
+              const y =
+                rectangle.y *
+                canvas.height;
+
+              const width =
+                rectangle.width *
+                canvas.width;
+
+              const height =
+                rectangle.height *
+                canvas.height;
+
+              /*
+               * Red = currently being created
+               * Green = large enough to be valid
+               */
+              context.strokeStyle =
+                rectangle.valid
+                  ? "lime"
+                  : "red";
+
+              context.lineWidth = 4;
+
+              context.strokeRect(
+                x,
+                y,
+                width,
+                height
+              );
+            }
+          }
+
           setStatus(
-            `Hand detected: ${results.landmarks.length}`
+            `Hands detected: ${results.landmarks.length}`
           );
         } else {
           setGesture("none");
@@ -211,10 +254,6 @@ export default function HandTracker() {
 
     setup();
 
-    /*
-     * Cleanup when the component
-     * is removed/exited.
-     */
     return () => {
       if (animationFrameId) {
         cancelAnimationFrame(
@@ -222,9 +261,6 @@ export default function HandTracker() {
         );
       }
 
-      /*
-       * Stop every camera track.
-       */
       if (stream) {
         stream
           .getTracks()
@@ -233,9 +269,6 @@ export default function HandTracker() {
           });
       }
 
-      /*
-       * Close MediaPipe.
-       */
       if (handLandmarker) {
         handLandmarker.close();
       }
@@ -246,7 +279,6 @@ export default function HandTracker() {
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black">
-      {/* Camera */}
       <video
         ref={videoRef}
         autoPlay
@@ -255,18 +287,15 @@ export default function HandTracker() {
         className="absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Hand landmarks */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Status */}
       <div className="absolute left-4 top-4 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur">
         {status}
       </div>
 
-      {/* Gesture */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-2xl bg-black/70 px-6 py-4 text-center backdrop-blur">
         <p className="text-xs uppercase tracking-widest text-white/40">
           Detected Gesture
